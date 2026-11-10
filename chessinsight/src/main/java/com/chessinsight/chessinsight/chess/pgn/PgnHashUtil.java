@@ -6,9 +6,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 public class PgnHashUtil {
-    private PgnHashUtil() {
-
-    }
 
     public static String sha256(String pgn) {
         try {

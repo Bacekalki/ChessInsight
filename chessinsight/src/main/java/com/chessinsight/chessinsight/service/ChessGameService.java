@@ -34,12 +34,6 @@ public class ChessGameService {
     private final ChessGameMapper mapper;
 
     @Transactional(readOnly = true)
-    public Page<ChessGameDto> getGames(Pageable pageable) {
-        return repository.findAll(pageable)
-            .map(mapper::toDto);
-    }
-
-    @Transactional(readOnly = true)
     public String getPgnById(Long id) {
         ChessGame game = repository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(
@@ -179,29 +173,6 @@ public class ChessGameService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ChessGameDto> searchGames(
-        String username,
-        String opening,
-        String result,
-        String timeControl,
-        String color,
-        String from,
-        String to,
-        Pageable pageable) {
-        return searchGames(
-            username,
-            opening,
-            result,
-            timeControl,
-            null,
-            color,
-            from,
-            to,
-            pageable
-        );
-    }
-
-    @Transactional(readOnly = true)
     public ChessGameDto getGameById(Long id) {
         ChessGame game = repository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(
@@ -297,7 +268,6 @@ public class ChessGameService {
             Board board = new Board();
             List<String> positions = new ArrayList<>();
 
-            // Position 0: before the first move.
             positions.add(board.getFen());
 
             for (Move move : game.getHalfMoves()) {
