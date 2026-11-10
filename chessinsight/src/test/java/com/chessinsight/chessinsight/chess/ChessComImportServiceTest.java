@@ -9,6 +9,7 @@ import com.chessinsight.chessinsight.game.GamePlatform;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -28,15 +29,9 @@ class ChessComImportServiceTest {
     @Mock
     private PgnImportService pgnImportService;
 
+    @InjectMocks
     private ChessComImportService service;
 
-    @BeforeEach
-    void setUp() {
-        service = new ChessComImportService(
-            chessComApiClient,
-            pgnImportService
-        );
-    }
 
     @Test
     void shouldReturnEmptyReportWhenNoArchivesExist() throws Exception {

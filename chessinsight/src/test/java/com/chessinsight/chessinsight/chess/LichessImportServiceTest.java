@@ -8,6 +8,7 @@ import com.chessinsight.chessinsight.game.GamePlatform;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -28,15 +29,9 @@ class LichessImportServiceTest {
     @Mock
     private PgnImportService pgnImportService;
 
+    @InjectMocks
     private LichessImportService service;
 
-    @BeforeEach
-    void setUp() {
-        service = new LichessImportService(
-            lichessApiClient,
-            pgnImportService
-        );
-    }
 
     @Test
     void shouldReturnEmptyReportWhenPgnIsEmpty() throws Exception {

@@ -17,6 +17,7 @@ import com.chessinsight.chessinsight.game.GamePlatform;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,14 +33,11 @@ class ChessAnalyticsServiceTest {
     @Mock
     private ChessGameRepository repository;
 
+    @InjectMocks
     private ChessAnalyticsService service;
 
     private static final String USERNAME = "bacekalki";
 
-    @BeforeEach
-    void setUp() {
-        service = new ChessAnalyticsService(repository);
-    }
 
     @Test
     void shouldCalculateSummaryCorrectly() {

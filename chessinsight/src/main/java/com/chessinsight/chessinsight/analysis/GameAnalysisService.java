@@ -26,20 +26,6 @@ public class GameAnalysisService {
     private final MoveClassificationService moveClassificationService;
     private final GameAccuracyService gameAccuracyService;
 
-    @Transactional(readOnly = true)
-    public List<String> getPositions(Long gameId) {
-        return chessGameService.getPositionsById(gameId);
-    }
-
-    @Transactional(readOnly = true)
-    public List<AnalysisResult> analyzePositions(
-        Long gameId, int depth)
-        throws IOException, InterruptedException {
-
-        List<String> positions = getPositions(gameId);
-        return stockfishService.analyzeMany(positions, depth);
-    }
-
     private GameAnalysisData analyzeGameData(
         Long gameId, int depth)
         throws IOException, InterruptedException {
