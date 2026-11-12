@@ -376,7 +376,7 @@ export const GameDetailPage: React.FC = () => {
       if (!move.classification) continue;
       const cls = move.classification.toUpperCase();
       if (cls === 'UNAVAILABLE') continue;
-      const display = getMoveClassificationDisplay(move.classification);
+      const display = getMoveClassificationDisplay(move.classification, move.centipawnLoss);
       const label = display.label.toLowerCase();
       const key = move.mover === 'WHITE' ? 'white' : 'black';
       if (label === 'best') stats[key].best++;
@@ -536,7 +536,7 @@ export const GameDetailPage: React.FC = () => {
                       </div>
                       <div className="max-h-80 overflow-y-auto divide-y divide-slate-800">
                         {analysis.moves.map((move: GameAnalysisMove, idx: number) => {
-                          const display = getMoveClassificationDisplay(move.classification);
+                          const display = getMoveClassificationDisplay(move.classification, move.centipawnLoss);
                           const isSelected = currentMoveIndex === idx;
                           return (
                             <button

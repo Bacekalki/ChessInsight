@@ -1,4 +1,3 @@
-
 package com.chessinsight.chessinsight.analysis;
 
 import com.chessinsight.chessinsight.analysis.records.AnalysisResult;
@@ -13,12 +12,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
 public class GameAnalysisService {
+
+    private static final int MATE_PENALTY = 100_000;
 
     private final ChessGameService chessGameService;
     private final StockfishService stockfishService;
@@ -27,8 +29,9 @@ public class GameAnalysisService {
     private final GameAccuracyService gameAccuracyService;
 
     private GameAnalysisData analyzeGameData(
-        Long gameId, int depth)
-        throws IOException, InterruptedException {
+        Long gameId,
+        int depth
+    ) throws IOException, InterruptedException {
 
         List<String> sanMoves =
             chessGameService.getMovesById(gameId);
@@ -61,22 +64,13 @@ public class GameAnalysisService {
             AnalysisResult before = evaluations.get(i);
             AnalysisResult after = evaluations.get(i + 1);
 
-            String[] fenParts = positions.get(i).trim().split("\\s+");
+            String activeColor = getActiveColor(positions.get(i));
 
-            if (fenParts.length < 2
-                || (!fenParts[1].equals("w")
-                && !fenParts[1].equals("b"))) {
-                throw new IllegalStateException(
-                    "A game position has an invalid active color."
-                );
-            }
-
-            String mover = fenParts[1].equals("w")
+            String mover = activeColor.equals("w")
                 ? "WHITE"
                 : "BLACK";
 
             Candidate bestBefore = getBestCandidate(before);
-            Candidate bestAfter = getBestCandidate(after);
 
             String engineBestMove = bestBefore == null
                 ? null
@@ -85,47 +79,27 @@ public class GameAnalysisService {
             Integer loss = null;
             String classification = "UNAVAILABLE";
 
-            String mateClassification = classifyMateTransition(
-                bestBefore, bestAfter, mover
-            );
+            String mateClassification =
+                classifyMateTransition(before, after, mover);
 
-            boolean playedIsBestMove = uciMoves.get(i).equalsIgnoreCase(engineBestMove);
+            try {
+                loss = evaluationLossService
+                    .calculateCentipawnLoss(before, after);
+            } catch (IllegalArgumentException ignored) {
+
+            }
 
             if (mateClassification != null) {
-                if ((mateClassification.equals("MATE_FOUND")
-                    || mateClassification.equals("MATE_CLOSER"))
-                    && !playedIsBestMove) {
-                    try {
-                        loss = evaluationLossService
-                            .calculateCentipawnLoss(before, after);
+                classification = mateClassification;
 
-                        classification =
-                            moveClassificationService.classify(loss);
-                    } catch (IllegalArgumentException ignored) {
-                        classification = "UNAVAILABLE";
-                    }
-                } else if ((mateClassification.equals("MATE_FOUND")
-                    || mateClassification.equals("MATE_CLOSER"))
-                    && playedIsBestMove) {
-                    classification = "BEST";
-                } else {
-                    classification = mateClassification;
+                if (loss == null
+                    && isSevereMateMistake(mateClassification)) {
+                    loss = MATE_PENALTY;
                 }
-            } else {
-                try {
-                    loss = evaluationLossService
-                        .calculateCentipawnLoss(before, after);
 
-                    classification =
-                        moveClassificationService.classify(loss);
-
-                    if (uciMoves.get(i).equalsIgnoreCase(engineBestMove)) {
-                        classification = "BEST";
-                    }
-
-                } catch (IllegalArgumentException ignored) {
-
-                }
+            } else if (loss != null) {
+                classification =
+                    moveClassificationService.classify(loss);
             }
 
             results.add(new MoveAnalysis(
@@ -167,33 +141,34 @@ public class GameAnalysisService {
     }
 
     private String classifyMateTransition(
-        Candidate before,
-        Candidate after,
-        String mover) {
+        AnalysisResult before,
+        AnalysisResult after,
+        String mover
+    ) {
+        MateEvaluation beforeMate = getMateEvaluation(before);
+        MateEvaluation afterMate = getMateEvaluation(after);
 
-        Integer beforeMate = before == null ? null : before.mateIn();
-        Integer afterMate = after == null ? null : after.mateIn();
-
-        boolean beforeHasMate = beforeMate != null;
-        boolean afterHasMate = afterMate != null;
-
-        if (!beforeHasMate && !afterHasMate) {
+        if (beforeMate == null && afterMate == null) {
             return null;
         }
 
         int moverSign = mover.equals("WHITE") ? 1 : -1;
 
-        boolean beforeMateForMover = beforeHasMate
-            && Integer.signum(beforeMate) == moverSign;
+        boolean beforeMateForMover =
+            beforeMate != null
+                && beforeMate.whiteSign() == moverSign;
 
-        boolean afterMateForMover = afterHasMate
-            && Integer.signum(afterMate) == moverSign;
+        boolean afterMateForMover =
+            afterMate != null
+                && afterMate.whiteSign() == moverSign;
 
-        boolean beforeMateAgainstMover = beforeHasMate
-            && Integer.signum(beforeMate) == -moverSign;
+        boolean beforeMateAgainstMover =
+            beforeMate != null
+                && beforeMate.whiteSign() == -moverSign;
 
-        boolean afterMateAgainstMover = afterHasMate
-            && Integer.signum(afterMate) == -moverSign;
+        boolean afterMateAgainstMover =
+            afterMate != null
+                && afterMate.whiteSign() == -moverSign;
 
         if (afterMateAgainstMover && !beforeMateAgainstMover) {
             return "MATE_BLUNDER";
@@ -211,18 +186,15 @@ public class GameAnalysisService {
             return "MATE_AVOIDED";
         }
 
-        if (beforeHasMate && afterHasMate
-            && Integer.signum(beforeMate)
-            == Integer.signum(afterMate)) {
+        if (beforeMate != null
+            && afterMate != null
+            && beforeMate.whiteSign() == afterMate.whiteSign()) {
 
-            int beforeDistance = Math.abs(beforeMate);
-            int afterDistance = Math.abs(afterMate);
-
-            if (afterDistance < beforeDistance) {
+            if (afterMate.distance() < beforeMate.distance()) {
                 return "MATE_CLOSER";
             }
 
-            if (afterDistance > beforeDistance) {
+            if (afterMate.distance() > beforeMate.distance()) {
                 return "MATE_FARTHER";
             }
 
@@ -232,6 +204,53 @@ public class GameAnalysisService {
         return "MATE_EVALUATION";
     }
 
+    private MateEvaluation getMateEvaluation(AnalysisResult result) {
+        Candidate candidate = getBestCandidate(result);
+
+        if (candidate == null || candidate.mateIn() == null) {
+            return null;
+        }
+
+        int mate = candidate.mateIn();
+
+        int whiteSign;
+
+        if (mate == 0) {
+            whiteSign = getActiveColor(result.fen()).equals("w")
+                ? -1
+                : 1;
+        } else {
+            whiteSign = Integer.signum(mate);
+        }
+
+        return new MateEvaluation(
+            whiteSign,
+            Math.abs(mate)
+        );
+    }
+
+    private boolean isSevereMateMistake(String classification) {
+        return classification.equals("MATE_LOST")
+            || classification.equals("MATE_BLUNDER");
+    }
+
+    private String getActiveColor(String fen) {
+        if (fen == null) {
+            throw new IllegalArgumentException("FEN is required.");
+        }
+
+        String[] fenParts = fen.trim().split("\\s+");
+
+        if (fenParts.length < 2
+            || (!fenParts[1].equals("w")
+            && !fenParts[1].equals("b"))) {
+            throw new IllegalStateException(
+                "A game position has an invalid active color."
+            );
+        }
+
+        return fenParts[1];
+    }
 
     @Transactional(readOnly = true)
     public GameAnalysisResponse analyzeGameWithAccuracy(
@@ -248,6 +267,10 @@ public class GameAnalysisService {
         double blackAccuracy =
             gameAccuracyService.calculateAccuracy(moves, "BLACK");
 
+        for (MoveAnalysis move : moves) {
+            System.out.println(move.toString());
+        }
+
         return new GameAnalysisResponse(
             whiteAccuracy,
             blackAccuracy,
@@ -255,7 +278,6 @@ public class GameAnalysisService {
             moves
         );
     }
-
 
     private PositionEvaluation toPositionEvaluation(
         AnalysisResult result
@@ -272,11 +294,6 @@ public class GameAnalysisService {
         );
     }
 
-    private record GameAnalysisData(
-        PositionEvaluation initialPositionEvaluation,
-        List<MoveAnalysis> moves
-    ) {}
-
     private List<Candidate> getCandidateLines(AnalysisResult result) {
         if (result == null || result.candidates() == null) {
             return List.of();
@@ -284,11 +301,18 @@ public class GameAnalysisService {
 
         return result.candidates().stream()
             .filter(Objects::nonNull)
-            .sorted(java.util.Comparator.comparingInt(Candidate::rank))
+            .sorted(Comparator.comparingInt(Candidate::rank))
             .limit(3)
             .toList();
     }
 
+    private record MateEvaluation(
+        int whiteSign,
+        int distance
+    ) {}
+
+    private record GameAnalysisData(
+        PositionEvaluation initialPositionEvaluation,
+        List<MoveAnalysis> moves
+    ) {}
 }
-
-

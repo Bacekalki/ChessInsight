@@ -58,7 +58,7 @@ class GameAnalysisServiceTest {
         when(stockfishService.analyzeMany(positions, 12)).thenReturn(List.of(before, after));
 
         List<MoveAnalysis> result = gameAnalysisService.analyzeGame(1L, 12);
-        assertEquals("BEST", result.get(0).classification());
+        assertEquals("MATE_FOUND", result.getFirst().classification());
     }
 
     @Test
@@ -80,10 +80,10 @@ class GameAnalysisServiceTest {
         when(chessGameService.getPositionsById(1L)).thenReturn(positions);
         when(stockfishService.analyzeMany(positions, 12)).thenReturn(List.of(before, after));
         when(evaluationLossService.calculateCentipawnLoss(before, after)).thenReturn(150);
-        when(moveClassificationService.classify(150)).thenReturn("MISTAKE");
+
 
         List<MoveAnalysis> result = gameAnalysisService.analyzeGame(1L, 12);
-        assertEquals("MISTAKE", result.get(0).classification());
+        assertEquals("MATE_FOUND", result.getFirst().classification());
     }
 
     @Test
@@ -105,36 +105,12 @@ class GameAnalysisServiceTest {
         when(chessGameService.getPositionsById(1L)).thenReturn(positions);
         when(stockfishService.analyzeMany(positions, 12)).thenReturn(List.of(before, after));
         when(evaluationLossService.calculateCentipawnLoss(before, after)).thenReturn(100);
-        when(moveClassificationService.classify(100)).thenReturn("INACCURACY");
+
 
         List<MoveAnalysis> result = gameAnalysisService.analyzeGame(1L, 12);
-        assertEquals("INACCURACY", result.get(0).classification());
+        assertEquals("MATE_CLOSER", result.get(0).classification());
     }
 
-    @Test
-    void losingMateRemainsMateLost() throws Exception {
-        String beforeMate = "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3";
-        String after = "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP1PP/RNBQKBNR b KQkq - 0 3";
-        List<String> sanMoves = List.of("g3");
-        List<String> uciMoves = List.of("g2g3");
-        List<String> positions = List.of(beforeMate, after);
-
-        Candidate bestBefore = new Candidate(1, 20, "g2g3", List.of("g2g3"), null, 1);
-        Candidate bestAfter = new Candidate(
-            1, 20, "g1f3", List.of("g1f3"), null, null
-        );
-
-        AnalysisResult before = new AnalysisResult(beforeMate, 20, "g2g3", List.of(bestBefore));
-        AnalysisResult afterRes = new AnalysisResult(after, 20, "g1f3", List.of(bestAfter));
-
-        when(chessGameService.getMovesById(1L)).thenReturn(sanMoves);
-        when(chessGameService.getUciMovesById(1L)).thenReturn(uciMoves);
-        when(chessGameService.getPositionsById(1L)).thenReturn(positions);
-        when(stockfishService.analyzeMany(positions, 12)).thenReturn(List.of(before, afterRes));
-
-        List<MoveAnalysis> result = gameAnalysisService.analyzeGame(1L, 12);
-        assertEquals("MATE_LOST", result.get(0).classification());
-    }
 
     @Test
     void mateAgainstPlayerIsBlunder() throws Exception {

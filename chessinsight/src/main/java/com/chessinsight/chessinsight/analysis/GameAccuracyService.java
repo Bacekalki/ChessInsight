@@ -8,12 +8,12 @@ import java.util.List;
 @Service
 public class GameAccuracyService {
 
-    private static final double ACCURACY_FACTOR = 0.004;
+    private static final double ACCURACY_FACTOR = 0.01;
 
     public double calculateAccuracy(
         List<MoveAnalysis> moves,
-        String playerColor) {
-
+        String playerColor
+    ) {
         if (moves == null || moves.isEmpty()) {
             return 0.0;
         }
@@ -28,14 +28,14 @@ public class GameAccuracyService {
 
             Integer centipawnLoss = move.centipawnLoss();
 
-            if (centipawnLoss == null || centipawnLoss < 0
-                || move.classification() != null
-                && move.classification().startsWith("MATE_")) {
+            if (centipawnLoss == null) {
                 continue;
             }
 
+            int loss = Math.max(0, centipawnLoss);
+
             double moveAccuracy = 100.0 * Math.exp(
-                -ACCURACY_FACTOR * centipawnLoss
+                -ACCURACY_FACTOR * loss
             );
 
             totalAccuracy += moveAccuracy;
@@ -46,6 +46,8 @@ public class GameAccuracyService {
             return 0.0;
         }
 
-        return Math.round(totalAccuracy / analyzedMoves * 100.0) / 100.0;
+        return Math.round(
+            totalAccuracy / analyzedMoves * 100.0
+        ) / 100.0;
     }
 }

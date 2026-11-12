@@ -1,4 +1,3 @@
-
 package com.chessinsight.chessinsight.analysis;
 
 import com.chessinsight.chessinsight.analysis.records.AnalysisResult;
@@ -29,7 +28,7 @@ public class EvaluationLossService {
     private String getActiveColor(AnalysisResult result) {
         if (result == null || result.fen() == null) {
             throw new IllegalArgumentException(
-                "The initial analysis and FEN are required."
+                "The analysis result and FEN are required."
             );
         }
 
@@ -39,7 +38,7 @@ public class EvaluationLossService {
             || (!fenParts[1].equals("w")
             && !fenParts[1].equals("b"))) {
             throw new IllegalArgumentException(
-                "The initial FEN has an invalid active color."
+                "The FEN has an invalid active color."
             );
         }
 
@@ -66,12 +65,26 @@ public class EvaluationLossService {
         if (best.mateIn() != null) {
             int mate = best.mateIn();
 
+            int whiteSign;
+
             if (mate == 0) {
-                return 0;
+
+                whiteSign = getActiveColor(result).equals("w")
+                    ? -1
+                    : 1;
+            } else {
+
+                whiteSign = Integer.signum(mate);
             }
 
-            int score = MATE_SCORE - Math.abs(mate);
-            return mate > 0 ? score : -score;
+            long distance = Math.min(
+                Math.abs((long) mate),
+                MATE_SCORE - 1L
+            );
+
+            int score = MATE_SCORE - (int) distance;
+
+            return whiteSign * score;
         }
 
         if (best.centipawns() == null) {
@@ -79,6 +92,7 @@ public class EvaluationLossService {
                 "The best candidate has no evaluation score."
             );
         }
+
 
         return best.centipawns();
     }

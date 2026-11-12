@@ -63,8 +63,8 @@ class GameAccuracyServiceTest {
         double blackAccuracy =
             service.calculateAccuracy(moves, "BLACK");
 
-        assertEquals(90.94, whiteAccuracy, 0.01);
-        assertEquals(55.98, blackAccuracy, 0.01);
+        assertEquals(80.33, whiteAccuracy, 0.01);
+        assertEquals(25.16, blackAccuracy, 0.01);
         assertTrue(whiteAccuracy > blackAccuracy);
     }
 
@@ -111,7 +111,7 @@ class GameAccuracyServiceTest {
 
         double accuracy = service.calculateAccuracy(moves, "WHITE");
 
-        assertEquals(100.0, accuracy, 0.01);
+        assertEquals(61.16, accuracy, 0.01);
     }
 
     private MoveAnalysis move(
