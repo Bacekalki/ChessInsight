@@ -7,6 +7,8 @@ import com.chessinsight.chessinsight.chess.pgn.PgnImportService;
 import com.chessinsight.chessinsight.dto.ChessGameDto;
 import com.chessinsight.chessinsight.service.ChessGameService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -133,24 +135,15 @@ public class GameController {
     }
 
     @PostMapping("/import/chesscom")
-    public ResponseEntity<Map<String, Object>> importChessComGames(
-        @RequestParam String username) throws Exception {
-
-        PgnImportReport report =
-            chessComImportService.importPlayerGames(username);
-
-        return ResponseEntity.ok(Map.of(
-            "message", "Chess.com games imported successfully",
-            "importedGames", report.imported(),
-            "skippedGames", report.skipped(),
-            "totalProcessedGames", report.totalProcessed()
-        ));
+    public PgnImportReport importChessComGames(
+        @RequestParam String username, @RequestParam(defaultValue = "50") @Min(1) @Max(2000) int numberOfGames) throws Exception {
+        return chessComImportService.importPlayerGames(username, numberOfGames);
     }
 
     @PostMapping("/import/lichess")
     public PgnImportReport importFromLichess(
-        @RequestParam String username) throws Exception {
-        return lichessImportService.importGames(username);
+        @RequestParam String username, @RequestParam(defaultValue = "50") @Min(1) @Max(2000) int numberOfGames) throws Exception {
+        return lichessImportService.importGames(username, numberOfGames);
     }
 
     @GetMapping("/{id}/pgn")

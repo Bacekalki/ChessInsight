@@ -16,7 +16,7 @@ public class LichessImportService {
     private final LichessApiClient lichessApiClient;
     private final PgnImportService pgnImportService;
 
-    public PgnImportReport importGames(String username) throws Exception {
+    public PgnImportReport importGames(String username, int numberOfGames) throws Exception {
         String pgn = lichessApiClient.downloadPgn(username);
 
         if (pgn == null || pgn.isBlank()) {
@@ -27,7 +27,7 @@ public class LichessImportService {
 
         try {
             Files.writeString(tempFile.toPath(), pgn);
-            return pgnImportService.importGames(tempFile, GamePlatform.LICHESS);
+            return pgnImportService.importGames(tempFile, GamePlatform.LICHESS, numberOfGames);
         } finally {
             Files.deleteIfExists(tempFile.toPath());
         }

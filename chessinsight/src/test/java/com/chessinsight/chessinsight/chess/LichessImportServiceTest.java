@@ -38,7 +38,7 @@ class LichessImportServiceTest {
         when(lichessApiClient.downloadPgn("testuser"))
             .thenReturn("");
 
-        PgnImportReport report = service.importGames("testuser");
+        PgnImportReport report = service.importGames("testuser", 50);
 
         assertEquals(0, report.imported());
         assertEquals(0, report.skipped());
@@ -67,17 +67,17 @@ class LichessImportServiceTest {
         PgnImportReport expectedReport =
             new PgnImportReport(2, 1, 0,3);
 
-        when(pgnImportService.importGames(any(), eq(GamePlatform.LICHESS)))
+        when(pgnImportService.importGames(any(), eq(GamePlatform.LICHESS), any(Integer.class)))
             .thenReturn(expectedReport);
 
-        PgnImportReport report = service.importGames("testuser");
+        PgnImportReport report = service.importGames("testuser", 50);
 
         assertEquals(2, report.imported());
         assertEquals(1, report.skipped());
         assertEquals(3, report.totalProcessed());
 
         verify(lichessApiClient).downloadPgn("testuser");
-        verify(pgnImportService).importGames(any(),  eq(GamePlatform.LICHESS));
+        verify(pgnImportService).importGames(any(),  eq(GamePlatform.LICHESS), any(Integer.class));
     }
 
     @Test
@@ -94,7 +94,7 @@ class LichessImportServiceTest {
         when(lichessApiClient.downloadPgn("testuser"))
             .thenReturn(pgn);
 
-        when(pgnImportService.importGames(any(), eq(GamePlatform.LICHESS)))
+        when(pgnImportService.importGames(any(), eq(GamePlatform.LICHESS), any(Integer.class)))
             .thenAnswer(invocation -> {
                 Path tempFile = ((java.io.File) invocation.getArgument(0))
                     .toPath();
@@ -107,7 +107,7 @@ class LichessImportServiceTest {
         RuntimeException exception = org.junit.jupiter.api.Assertions
             .assertThrows(
                 RuntimeException.class,
-                () -> service.importGames("testuser")
+                () -> service.importGames("testuser", 50)
             );
 
         assertEquals("Import failed", exception.getMessage());

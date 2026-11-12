@@ -18,7 +18,7 @@ public class ChessComImportService {
     private final ChessComApiClient apiClient;
     private final PgnImportService importService;
 
-    public PgnImportReport importPlayerGames(String username)
+    public PgnImportReport importPlayerGames(String username, int numberOfGames)
         throws Exception {
 
         if (username == null || username.isBlank()) {
@@ -60,12 +60,16 @@ public class ChessComImportService {
                 );
 
                 PgnImportReport report =
-                    importService.importGames(tempFile.toFile(), GamePlatform.CHESS_COM);
+                    importService.importGames(tempFile.toFile(), GamePlatform.CHESS_COM, numberOfGames);
 
                 imported += report.imported();
                 skipped += report.skipped();
                 malformed += report.malformed();
                 totalProcessed += report.totalProcessed();
+
+                if (totalProcessed > numberOfGames) {
+                    break;
+                }
 
             } finally {
                 try {

@@ -39,7 +39,7 @@ class ChessComImportServiceTest {
             .thenReturn(new ChessComArchivesResponse(List.of()));
 
         PgnImportReport report =
-            service.importPlayerGames("testuser");
+            service.importPlayerGames("testuser", 50);
 
         assertEquals(0, report.imported());
         assertEquals(0, report.skipped());
@@ -74,11 +74,11 @@ class ChessComImportServiceTest {
         PgnImportReport expectedReport =
             new PgnImportReport(2, 1, 0, 3);
 
-        when(pgnImportService.importGames(any(), eq(GamePlatform.CHESS_COM)))
+        when(pgnImportService.importGames(any(), eq(GamePlatform.CHESS_COM), any(Integer.class)))
             .thenReturn(expectedReport);
 
         PgnImportReport report =
-            service.importPlayerGames("testuser");
+            service.importPlayerGames("testuser", 50);
 
         assertEquals(2, report.imported());
         assertEquals(1, report.skipped());
@@ -86,7 +86,7 @@ class ChessComImportServiceTest {
 
         verify(chessComApiClient).getArchives("testuser");
         verify(chessComApiClient).downloadPgn(archiveUrl);
-        verify(pgnImportService).importGames(any(), eq(GamePlatform.CHESS_COM));
+        verify(pgnImportService).importGames(any(), eq(GamePlatform.CHESS_COM), any(Integer.class));
     }
 
     @Test
@@ -111,12 +111,12 @@ class ChessComImportServiceTest {
         when(chessComApiClient.downloadPgn(archiveUrl))
             .thenReturn(pgn);
 
-        when(pgnImportService.importGames(any(), eq(GamePlatform.CHESS_COM)))
+        when(pgnImportService.importGames(any(), eq(GamePlatform.CHESS_COM), any(Integer.class)))
             .thenThrow(new RuntimeException("Import failed"));
 
         RuntimeException exception = assertThrows(
             RuntimeException.class,
-            () -> service.importPlayerGames("testuser")
+            () -> service.importPlayerGames("testuser", 50)
         );
 
         assertEquals("Import failed", exception.getMessage());
