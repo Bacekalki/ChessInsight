@@ -166,7 +166,7 @@ class PgnImportServiceTest {
         allowNewGames();
 
         PgnImportReport report =
-            service.importGames(unknownTimeControlFile.toFile(), GamePlatform.CHESS_COM, 50);
+            service.importGames(unknownTimeControlFile.toFile(), GamePlatform.CHESS_COM, 50, 0);
 
         assertEquals(1, report.imported());
         assertEquals(0, report.skipped());

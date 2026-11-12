@@ -53,14 +53,15 @@ public class PgnImportService {
 
     @Transactional(rollbackFor = Exception.class)
     public PgnImportReport importGames(File file) throws Exception {
-        return importGames(file, GamePlatform.MANUAL, Integer.MAX_VALUE);
+        return importGames(file, GamePlatform.MANUAL, Integer.MAX_VALUE, Integer.MIN_VALUE);
     }
 
     @Transactional(rollbackFor = Exception.class)
     public PgnImportReport importGames(
         File file,
         GamePlatform platform,
-        int numberOfGames
+        int numberOfGames,
+        int alreadyProcessed
     ) throws Exception {
         int imported = 0;
         int skipped = 0;
@@ -72,7 +73,7 @@ public class PgnImportService {
             PgnIterator iterator = new PgnIterator(largeFile)
         ) {
             for (Game game : iterator) {
-                if (totalProcessed > numberOfGames) {
+                if (alreadyProcessed >= numberOfGames) {
                     break;
                 }
                 game.loadMoveText();
@@ -81,6 +82,7 @@ public class PgnImportService {
                     skipped++;
                     malformed++;
                     totalProcessed++;
+                    alreadyProcessed++;
                     continue;
                 }
 
@@ -88,6 +90,7 @@ public class PgnImportService {
                 String hash = PgnHashUtil.sha256(pgn);
 
                 totalProcessed++;
+                alreadyProcessed++;
 
                 if (repository.existsByPgnHash(hash)) {
                     skipped++;

@@ -27,7 +27,7 @@ public class LichessImportService {
 
         try {
             Files.writeString(tempFile.toPath(), pgn);
-            return pgnImportService.importGames(tempFile, GamePlatform.LICHESS, numberOfGames);
+            return pgnImportService.importGames(tempFile, GamePlatform.LICHESS, numberOfGames, 0);
         } finally {
             Files.deleteIfExists(tempFile.toPath());
         }

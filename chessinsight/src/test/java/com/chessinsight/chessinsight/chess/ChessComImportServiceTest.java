@@ -55,13 +55,13 @@ class ChessComImportServiceTest {
             "https://api.chess.com/pub/player/testuser/games/2026/10";
 
         String pgn = """
-                [Event "Live Chess"]
-                [White "testuser"]
-                [Black "opponent"]
-                [Result "1-0"]
-
-                1. e4 e5 1-0
-                """;
+            [Event "Live Chess"]
+            [White "testuser"]
+            [Black "opponent"]
+            [Result "1-0"]
+            
+            1. e4 e5 1-0
+            """;
 
         when(chessComApiClient.getArchives("testuser"))
             .thenReturn(new ChessComArchivesResponse(
@@ -74,7 +74,7 @@ class ChessComImportServiceTest {
         PgnImportReport expectedReport =
             new PgnImportReport(2, 1, 0, 3);
 
-        when(pgnImportService.importGames(any(), eq(GamePlatform.CHESS_COM), any(Integer.class)))
+        when(pgnImportService.importGames(any(), eq(GamePlatform.CHESS_COM), any(Integer.class), any(Integer.class)))
             .thenReturn(expectedReport);
 
         PgnImportReport report =
@@ -86,7 +86,7 @@ class ChessComImportServiceTest {
 
         verify(chessComApiClient).getArchives("testuser");
         verify(chessComApiClient).downloadPgn(archiveUrl);
-        verify(pgnImportService).importGames(any(), eq(GamePlatform.CHESS_COM), any(Integer.class));
+        verify(pgnImportService).importGames(any(), eq(GamePlatform.CHESS_COM), any(Integer.class), any(Integer.class));
     }
 
     @Test
@@ -95,13 +95,13 @@ class ChessComImportServiceTest {
             "https://api.chess.com/pub/player/testuser/games/2026/10";
 
         String pgn = """
-                [Event "Live Chess"]
-                [White "testuser"]
-                [Black "opponent"]
-                [Result "1-0"]
-
-                1. e4 e5 1-0
-                """;
+            [Event "Live Chess"]
+            [White "testuser"]
+            [Black "opponent"]
+            [Result "1-0"]
+            
+            1. e4 e5 1-0
+            """;
 
         when(chessComApiClient.getArchives("testuser"))
             .thenReturn(new ChessComArchivesResponse(
@@ -111,7 +111,7 @@ class ChessComImportServiceTest {
         when(chessComApiClient.downloadPgn(archiveUrl))
             .thenReturn(pgn);
 
-        when(pgnImportService.importGames(any(), eq(GamePlatform.CHESS_COM), any(Integer.class)))
+        when(pgnImportService.importGames(any(), eq(GamePlatform.CHESS_COM), any(Integer.class), any(Integer.class)))
             .thenThrow(new RuntimeException("Import failed"));
 
         RuntimeException exception = assertThrows(
