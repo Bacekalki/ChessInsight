@@ -18,9 +18,13 @@ export const importApi = {
   /**
    * Import player archives from Chess.com
    */
-  async importChessCom(username: string): Promise<GenericImportResponse> {
-    return apiClient<GenericImportResponse>(
-      `/api/games/import/chesscom?username=${encodeURIComponent(username)}`,
+  async importChessCom(username: string, numberOfGames: number = 50): Promise<PgnImportReport> {
+    const params = new URLSearchParams({
+      username,
+      numberOfGames: String(numberOfGames),
+    });
+    return apiClient<PgnImportReport>(
+      `/api/games/import/chesscom?${params.toString()}`,
       {
         method: 'POST',
       }
@@ -30,9 +34,13 @@ export const importApi = {
   /**
    * Import player games from Lichess
    */
-  async importLichess(username: string): Promise<PgnImportReport> {
+  async importLichess(username: string, numberOfGames: number = 50): Promise<PgnImportReport> {
+    const params = new URLSearchParams({
+      username,
+      numberOfGames: String(numberOfGames),
+    });
     return apiClient<PgnImportReport>(
-      `/api/games/import/lichess?username=${encodeURIComponent(username)}`,
+      `/api/games/import/lichess?${params.toString()}`,
       {
         method: 'POST',
       }

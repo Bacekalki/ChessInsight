@@ -8,6 +8,7 @@ import { UploadCloud, CheckCircle2, FileText } from 'lucide-react';
 export const ImportPage: React.FC = () => {
   const { username } = useUsername();
   const [platformUser, setPlatformUser] = useState(username);
+  const [numberOfGames, setNumberOfGames] = useState<number>(50);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
   const [successReport, setSuccessReport] = useState<{
@@ -20,18 +21,32 @@ export const ImportPage: React.FC = () => {
   const [dragActive, setDragActive] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const validatePlatformImport = (): { username: string; count: number } | null => {
+    const trimmedUser = platformUser.trim();
+    if (!trimmedUser) {
+      setError(new Error('Please enter a username.'));
+      return null;
+    }
+    if (!Number.isFinite(numberOfGames) || !Number.isInteger(numberOfGames) || numberOfGames <= 0) {
+      setError(new Error('Number of games must be a positive whole number.'));
+      return null;
+    }
+    return { username: trimmedUser, count: numberOfGames };
+  };
+
   const handleChessComImport = async () => {
-    if (!platformUser.trim()) return;
+    const validated = validatePlatformImport();
+    if (!validated) return;
     setLoading(true);
     setError(null);
     setSuccessReport(null);
     try {
-      const res = await importApi.importChessCom(platformUser.trim());
+      const res = await importApi.importChessCom(validated.username, validated.count);
       setSuccessReport({
-        message: res.message,
-        imported: res.importedGames,
-        skipped: res.skippedGames,
-        total: res.totalProcessedGames,
+        message: 'Chess.com games imported successfully',
+        imported: res.imported,
+        skipped: res.skipped,
+        total: res.totalProcessed,
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err : new Error(String(err)));
@@ -41,12 +56,13 @@ export const ImportPage: React.FC = () => {
   };
 
   const handleLichessImport = async () => {
-    if (!platformUser.trim()) return;
+    const validated = validatePlatformImport();
+    if (!validated) return;
     setLoading(true);
     setError(null);
     setSuccessReport(null);
     try {
-      const res = await importApi.importLichess(platformUser.trim());
+      const res = await importApi.importLichess(validated.username, validated.count);
       setSuccessReport({
         message: 'Lichess games imported successfully',
         imported: res.imported,
@@ -151,13 +167,25 @@ export const ImportPage: React.FC = () => {
       {successReport && (
         <div className="rounded-lg border border-emerald-800/50 bg-emerald-950/30 p-4 text-emerald-200 flex items-start gap-3">
           <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-          <div className="space-y-1 text-sm">
+          <div className="space-y-2 text-sm w-full">
             <h4 className="font-semibold text-emerald-300">{successReport.message}</h4>
-            <p className="text-emerald-200/90 text-xs">
-              Imported: <span className="font-bold">{successReport.imported}</span> &bull; Skipped:{' '}
-              <span className="font-bold">{successReport.skipped}</span> &bull; Total Processed:{' '}
-              <span className="font-bold">{successReport.total}</span>
-            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div className="bg-emerald-950/40 border border-emerald-900/50 rounded-md px-3 py-2">
+                <div className="text-emerald-300/80">Imported games</div>
+                <div className="font-semibold text-emerald-100 text-sm">{successReport.imported}</div>
+                <div className="text-[11px] text-emerald-300/60">Newly imported</div>
+              </div>
+              <div className="bg-emerald-950/40 border border-emerald-900/50 rounded-md px-3 py-2">
+                <div className="text-emerald-300/80">Skipped games</div>
+                <div className="font-semibold text-emerald-100 text-sm">{successReport.skipped}</div>
+                <div className="text-[11px] text-emerald-300/60">Already in database</div>
+              </div>
+              <div className="bg-emerald-950/40 border border-emerald-900/50 rounded-md px-3 py-2">
+                <div className="text-emerald-300/80">Total processed games</div>
+                <div className="font-semibold text-emerald-100 text-sm">{successReport.total}</div>
+                <div className="text-[11px] text-emerald-300/60">Processed in this import</div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -179,6 +207,22 @@ export const ImportPage: React.FC = () => {
               placeholder="Username..."
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
             />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-slate-300">Number of games</label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={numberOfGames}
+              onChange={(e) => {
+                const val = e.target.value;
+                setNumberOfGames(val === '' ? NaN : Number(val));
+              }}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+            />
+            <p className="text-[11px] text-slate-500">Defaults to 50. Imports the most recent games.</p>
           </div>
 
           <div className="flex gap-3 pt-2">
