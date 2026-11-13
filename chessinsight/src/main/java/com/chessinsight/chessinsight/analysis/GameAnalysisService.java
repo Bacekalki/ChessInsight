@@ -267,10 +267,6 @@ public class GameAnalysisService {
         double blackAccuracy =
             gameAccuracyService.calculateAccuracy(moves, "BLACK");
 
-        for (MoveAnalysis move : moves) {
-            System.out.println(move.toString());
-        }
-
         return new GameAnalysisResponse(
             whiteAccuracy,
             blackAccuracy,

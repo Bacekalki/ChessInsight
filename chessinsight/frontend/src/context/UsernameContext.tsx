@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 interface UsernameContextType {
   username: string;
@@ -11,9 +11,8 @@ const UsernameContext = createContext<UsernameContextType | undefined>(undefined
 
 export const UsernameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [username, setUsernameState] = useState<string>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'bacekalki') return '';
-    return stored || '';
+    // No default username: start empty unless the user previously saved one.
+    return localStorage.getItem(STORAGE_KEY) || '';
   });
 
   const setUsername = (newUsername: string) => {
@@ -21,14 +20,6 @@ export const UsernameProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setUsernameState(trimmed);
     localStorage.setItem(STORAGE_KEY, trimmed);
   };
-
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'bacekalki') {
-      localStorage.setItem(STORAGE_KEY, '');
-      setUsernameState('');
-    }
-  }, []);
 
   return (
     <UsernameContext.Provider value={{ username, setUsername }}>
