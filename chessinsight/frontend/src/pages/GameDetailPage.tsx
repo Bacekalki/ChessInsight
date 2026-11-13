@@ -4,12 +4,41 @@ import { gamesApi } from '../api/gamesApi';
 import { ChessGameDto, GameAnalysisResponse, GameAnalysisMove } from '../types/game.types';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { ErrorMessage } from '../components/common/ErrorMessage';
-import { ArrowLeft, Download, Calendar, Clock, Users, BookOpen, Globe2, List, SkipBack, ChevronLeft, ChevronRight, SkipForward, Play, Pause, BarChart3, Target } from 'lucide-react';
+import { ArrowLeft, Download, Calendar, Clock, Users, BookOpen, Globe2, List, SkipBack, ChevronLeft, ChevronRight, SkipForward, Play, Pause, BarChart3, Target, Star, Check, CheckCheck, AlertCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import { getMoveClassificationDisplay, formatAccuracy } from '../utils/moveClassification';
 import { uciToSan, uciSequenceToSan } from '../utils/chessNotation';
 import { useUsername } from '../context/UsernameContext';
+
+type MoveClassificationBadgeConfig = {
+  Icon: React.ComponentType<{ className?: string }>;
+  badgeClass: string;
+};
+
+// Solid, high-contrast badge styles for the six display categories.
+// Mate-related backend classifications are already mapped into these categories
+// by getMoveClassificationDisplay(), so no extra badge categories are introduced.
+const MOVE_CLASSIFICATION_BADGES: Record<string, MoveClassificationBadgeConfig> = {
+  Best: { Icon: Star, badgeClass: 'bg-emerald-500 text-white ring-emerald-200/70' },
+  Excellent: { Icon: CheckCheck, badgeClass: 'bg-emerald-300 text-emerald-950 ring-emerald-100/70' },
+  Good: { Icon: Check, badgeClass: 'bg-cyan-400 text-cyan-950 ring-cyan-100/70' },
+  Inaccuracy: { Icon: AlertCircle, badgeClass: 'bg-amber-400 text-amber-950 ring-amber-100/70' },
+  Mistake: { Icon: AlertTriangle, badgeClass: 'bg-orange-500 text-white ring-orange-200/70' },
+  Blunder: { Icon: XCircle, badgeClass: 'bg-rose-500 text-white ring-rose-200/70' },
+};
+
+// Convert an algebraic square to 0-based visual column/row for the current board orientation.
+const getBoardCoordinates = (square: string, orientation: 'white' | 'black') => {
+  const file = square.charCodeAt(0) - 97; // a=0 ... h=7
+  const rank = Number(square[1]) - 1; // rank 1=0 ... rank 8=7
+  if (!Number.isFinite(file) || !Number.isFinite(rank) || file < 0 || file > 7 || rank < 0 || rank > 7) {
+    return null;
+  }
+  const col = orientation === 'white' ? file : 7 - file;
+  const row = orientation === 'white' ? 7 - rank : rank;
+  return { col, row };
+};
 
 export const GameDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -26,6 +55,7 @@ export const GameDetailPage: React.FC = () => {
 
   const [chess, setChess] = useState<Chess>(new Chess());
   const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(-1);
+  const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const autoplayRef = useRef<number | null>(null);
   const [analysisDepth, setAnalysisDepth] = useState<number>(12);
@@ -110,6 +140,7 @@ export const GameDetailPage: React.FC = () => {
     setMovesError(null);
     setChess(new Chess());
     setCurrentMoveIndex(-1);
+    setLastMove(null);
     setIsPlaying(false);
     setAnalysis(null);
     setAnalysisError(null);
@@ -157,14 +188,19 @@ export const GameDetailPage: React.FC = () => {
 
   useEffect(() => {
     const newChess = new Chess();
+    let latestMove: { from: string; to: string } | null = null;
     for (let i = 0; i <= currentMoveIndex && i < moves.length; i++) {
       try {
-        newChess.move(moves[i]);
+        const applied = newChess.move(moves[i]);
+        if (i === currentMoveIndex && applied) {
+          latestMove = { from: applied.from, to: applied.to };
+        }
       } catch (e) {
         // Skip invalid move if any
       }
     }
     setChess(newChess);
+    setLastMove(latestMove);
   }, [currentMoveIndex, moves]);
 
   const goToStart = () => {
@@ -380,6 +416,20 @@ export const GameDetailPage: React.FC = () => {
       return analysis.moves[currentMoveIndex].candidateLines || null;
     }
     return null;
+  };
+
+  const getSelectedMoveBadge = (): (MoveClassificationBadgeConfig & { label: string }) | null => {
+    if (!analysis || !analysis.moves || currentMoveIndex < 0 || currentMoveIndex >= analysis.moves.length) {
+      return null;
+    }
+    const move = analysis.moves[currentMoveIndex];
+    if (!move || !move.classification) return null;
+
+    const display = getMoveClassificationDisplay(move.classification, move.centipawnLoss);
+    const config = MOVE_CLASSIFICATION_BADGES[display.label];
+    if (!config) return null;
+
+    return { ...config, label: display.label };
   };
 
   const getMoveQualityStats = () => {
@@ -741,7 +791,7 @@ export const GameDetailPage: React.FC = () => {
                     return (
                       <>
                         {renderPlayerPanel(topColor)}
-                        <div className="w-full max-w-[500px]">
+                        <div className="relative w-full max-w-[500px]">
                           {(() => {
                             const bestMove = getEngineBestMoveForCurrentPosition();
                             const customArrows: any[] = [];
@@ -761,6 +811,28 @@ export const GameDetailPage: React.FC = () => {
                                 customArrows={customArrows}
                                 customSquareStyles={squareStyles}
                               />
+                            );
+                          })()}
+                          {(() => {
+                            const badge = getSelectedMoveBadge();
+                            const position = lastMove
+                              ? getBoardCoordinates(lastMove.to, boardOrientation)
+                              : null;
+                            if (!badge || !position) return null;
+                            const BadgeIcon = badge.Icon;
+                            return (
+                              <div
+                                className={`pointer-events-none absolute z-20 flex h-4 w-4 items-center justify-center rounded-full shadow-md ring-1 sm:h-5 sm:w-5 ${badge.badgeClass}`}
+                                style={{
+                                  left: `${(position.col + 1) * 12.5}%`,
+                                  top: `${position.row * 12.5}%`,
+                                  transform: 'translate(-85%, 10%)',
+                                }}
+                                role="img"
+                                aria-label={`${badge.label} move`}
+                              >
+                                <BadgeIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                              </div>
                             );
                           })()}
                         </div>
