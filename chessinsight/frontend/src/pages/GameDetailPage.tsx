@@ -9,10 +9,12 @@ import { Chess } from 'chess.js';
 import { Chessboard } from 'react-chessboard';
 import { getMoveClassificationDisplay, formatAccuracy } from '../utils/moveClassification';
 import { uciToSan, uciSequenceToSan } from '../utils/chessNotation';
+import { useUsername } from '../context/UsernameContext';
 
 export const GameDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { username } = useUsername();
   const gameId = id ? Number(id) : NaN;
 
   const [game, setGame] = useState<ChessGameDto | null>(null);
@@ -344,6 +346,20 @@ export const GameDetailPage: React.FC = () => {
     return chess.fen();
   };
 
+  // Orient the board so the initially entered ChessInsight username's pieces are at the bottom.
+  // The username comes from the app-level UsernameContext (the same value used to load this user's games).
+  const normalizePlayerName = (name: string | null | undefined): string =>
+    (name ?? '').trim().toLowerCase();
+
+  const boardOrientation: 'white' | 'black' = (() => {
+    const activeUser = normalizePlayerName(username);
+    if (!activeUser || !game) return 'white';
+
+    if (activeUser === normalizePlayerName(game.whiteUsername)) return 'white';
+    if (activeUser === normalizePlayerName(game.blackUsername)) return 'black';
+    return 'white';
+  })();
+
   const getEngineBestMoveForCurrentPosition = () => {
     if (!analysis) return null;
     if (currentMoveIndex < 0) {
@@ -656,82 +672,102 @@ export const GameDetailPage: React.FC = () => {
                   );
                 })()}
                 <div className="flex flex-col items-center gap-2 flex-1">
-                  {/* Black player panel (above board when White at bottom) */}
-                  <div className="w-full max-w-[500px] flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-xs font-semibold text-slate-300">
-                        {(game.blackUsername && game.blackUsername[0] ? game.blackUsername[0].toUpperCase() : 'B')}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm text-slate-200 font-medium">{game.blackUsername || 'Unknown'}</span>
-                        {game.blackRating !== null && game.blackRating !== undefined && (
-                          <span className="text-[10px] text-slate-500">{game.blackRating}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 uppercase tracking-wider">Black</span>
-                      {chess.turn() === 'b' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-800/40">To move</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="w-full max-w-[500px]">
-                    {(() => {
-                      const bestMove = getEngineBestMoveForCurrentPosition();
-                      const customArrows: any[] = [];
-                      const squareStyles: any = {};
-                      if (bestMove && bestMove.length >= 4) {
-                        const from = bestMove.substring(0, 2);
-                        const to = bestMove.substring(2, 4);
-                        squareStyles[from] = { backgroundColor: 'rgba(96, 165, 250, 0.4)' };
-                        squareStyles[to] = { backgroundColor: 'rgba(96, 165, 250, 0.4)' };
-                        customArrows.push([from, to, 'rgba(96, 165, 250, 0.8)']);
-                      }
+                  {(() => {
+                    const topColor = boardOrientation === 'white' ? 'BLACK' : 'WHITE';
+                    const bottomColor = boardOrientation === 'white' ? 'WHITE' : 'BLACK';
+
+                    const renderPlayerPanel = (color: 'WHITE' | 'BLACK') => {
+                      const isWhite = color === 'WHITE';
+                      const displayName = isWhite ? game.whiteUsername : game.blackUsername;
+                      const rating = isWhite ? game.whiteRating : game.blackRating;
+                      const fallbackInitial = isWhite ? 'W' : 'B';
+                      const activeUser = normalizePlayerName(username);
+                      const isActiveUser = !!activeUser && activeUser === normalizePlayerName(displayName);
                       return (
-                        <Chessboard 
-                          position={chess.fen()} 
-                          boardOrientation="white"
-                          arePiecesDraggable={false}
-                          customArrows={customArrows}
-                          customSquareStyles={squareStyles}
-                        />
+                        <div
+                          className={`w-full max-w-[500px] flex items-center justify-between bg-slate-950 border rounded-lg px-3 py-2 ${
+                            isActiveUser ? 'border-emerald-800/60 ring-1 ring-inset ring-emerald-500/20' : 'border-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold ${
+                                isWhite ? 'bg-slate-100 text-slate-900' : 'bg-slate-800 text-slate-300'
+                              }`}
+                            >
+                              {displayName && displayName[0] ? displayName[0].toUpperCase() : fallbackInitial}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-slate-200 font-medium">{displayName || 'Unknown'}</span>
+                              {rating !== null && rating !== undefined && (
+                                <span className="text-[10px] text-slate-500">{rating}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 uppercase tracking-wider">
+                              {isWhite ? 'White' : 'Black'}
+                            </span>
+                            {isActiveUser && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-800/40">
+                                You
+                              </span>
+                            )}
+                            {chess.turn() === (isWhite ? 'w' : 'b') && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-800/40">
+                                To move
+                              </span>
+                            )}
+                            {isWhite && (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                  game.result === 'WHITE_WIN'
+                                    ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40'
+                                    : game.result === 'BLACK_WIN'
+                                    ? 'bg-rose-950/60 text-rose-400 border border-rose-800/40'
+                                    : game.result === 'DRAW'
+                                    ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40'
+                                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                }`}
+                              >
+                                {formatResult(game.result)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       );
-                    })()}
-                  </div>
-                  {/* White player panel (below board) */}
-                  <div className="w-full max-w-[500px] flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-900">
-                        {(game.whiteUsername && game.whiteUsername[0] ? game.whiteUsername[0].toUpperCase() : 'W')}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm text-slate-200 font-medium">{game.whiteUsername || 'Unknown'}</span>
-                        {game.whiteRating !== null && game.whiteRating !== undefined && (
-                          <span className="text-[10px] text-slate-500">{game.whiteRating}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 uppercase tracking-wider">White</span>
-                      {chess.turn() === 'w' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-800/40">To move</span>
-                      )}
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                          game.result === 'WHITE_WIN'
-                            ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/40'
-                            : game.result === 'BLACK_WIN'
-                            ? 'bg-rose-950/60 text-rose-400 border border-rose-800/40'
-                            : game.result === 'DRAW'
-                            ? 'bg-amber-950/60 text-amber-400 border border-amber-800/40'
-                            : 'bg-slate-800 text-slate-400 border border-slate-700'
-                        }`}
-                      >
-                        {formatResult(game.result)}
-                      </span>
-                    </div>
-                  </div>
+                    };
+
+                    return (
+                      <>
+                        {renderPlayerPanel(topColor)}
+                        <div className="w-full max-w-[500px]">
+                          {(() => {
+                            const bestMove = getEngineBestMoveForCurrentPosition();
+                            const customArrows: any[] = [];
+                            const squareStyles: any = {};
+                            if (bestMove && bestMove.length >= 4) {
+                              const from = bestMove.substring(0, 2);
+                              const to = bestMove.substring(2, 4);
+                              squareStyles[from] = { backgroundColor: 'rgba(96, 165, 250, 0.4)' };
+                              squareStyles[to] = { backgroundColor: 'rgba(96, 165, 250, 0.4)' };
+                              customArrows.push([from, to, 'rgba(96, 165, 250, 0.8)']);
+                            }
+                            return (
+                              <Chessboard
+                                position={chess.fen()}
+                                boardOrientation={boardOrientation}
+                                arePiecesDraggable={false}
+                                customArrows={customArrows}
+                                customSquareStyles={squareStyles}
+                              />
+                            );
+                          })()}
+                        </div>
+                        {renderPlayerPanel(bottomColor)}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
               {moves.length > 0 && (
