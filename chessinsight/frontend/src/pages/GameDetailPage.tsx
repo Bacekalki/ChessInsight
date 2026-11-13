@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { gamesApi } from '../api/gamesApi';
 import { ChessGameDto, GameAnalysisResponse, GameAnalysisMove } from '../types/game.types';
@@ -28,6 +28,11 @@ const MOVE_CLASSIFICATION_BADGES: Record<string, MoveClassificationBadgeConfig> 
   Blunder: { Icon: XCircle, badgeClass: 'bg-rose-500 text-white ring-rose-200/70' },
 };
 
+type BoardPositionSnapshot = {
+  fen: string;
+  lastMove: { from: string; to: string } | null;
+};
+
 // Convert an algebraic square to 0-based visual column/row for the current board orientation.
 const getBoardCoordinates = (square: string, orientation: 'white' | 'black') => {
   const file = square.charCodeAt(0) - 97; // a=0 ... h=7
@@ -53,9 +58,7 @@ export const GameDetailPage: React.FC = () => {
   const [gameError, setGameError] = useState<Error | null>(null);
   const [movesError, setMovesError] = useState<Error | null>(null);
 
-  const [chess, setChess] = useState<Chess>(new Chess());
   const [currentMoveIndex, setCurrentMoveIndex] = useState<number>(-1);
-  const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const autoplayRef = useRef<number | null>(null);
   const [analysisDepth, setAnalysisDepth] = useState<number>(12);
@@ -63,6 +66,72 @@ export const GameDetailPage: React.FC = () => {
   const [analysis, setAnalysis] = useState<GameAnalysisResponse | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState<boolean>(false);
   const [analysisError, setAnalysisError] = useState<Error | null>(null);
+
+  // Replay the game once per move-list change and cache every position.
+  // Index 0 is the initial position; index i + 1 is the position after move i.
+  const boardPositions = useMemo<BoardPositionSnapshot[]>(() => {
+    const snapshots: BoardPositionSnapshot[] = [];
+    const replay = new Chess();
+    snapshots.push({ fen: replay.fen(), lastMove: null });
+
+    for (const san of moves) {
+      try {
+        const applied = replay.move(san);
+        snapshots.push({
+          fen: replay.fen(),
+          lastMove: applied ? { from: applied.from, to: applied.to } : null,
+        });
+      } catch {
+        // Preserve the last valid position if a move cannot be replayed.
+        snapshots.push({ fen: replay.fen(), lastMove: null });
+      }
+    }
+
+    return snapshots;
+  }, [moves]);
+
+  // Precompute the engine-best-move SAN once per analysis/move-list change.
+  // A single Chess instance walks forward: convert the best move for the
+  // position BEFORE applying each played move, then advance one move.
+  const bestMoveSan = useMemo<Record<number, string>>(() => {
+    const result: Record<number, string> = {};
+    if (!analysis || !analysis.moves || analysis.moves.length === 0 || moves.length === 0) {
+      return result;
+    }
+
+    // Key by ply (1-based) so the lookup does not depend on list ordering.
+    const bestMoveByPly = new Map<number, string>();
+    for (const move of analysis.moves) {
+      if (move.engineBestMove && typeof move.ply === 'number') {
+        bestMoveByPly.set(move.ply, move.engineBestMove);
+      }
+    }
+
+    const replay = new Chess();
+    for (let i = 0; i < moves.length; i++) {
+      const engineBestMove = bestMoveByPly.get(i + 1);
+      if (engineBestMove) {
+        const san = uciToSan(replay.fen(), engineBestMove);
+        if (san) {
+          result[i + 1] = san;
+        }
+      }
+      try {
+        replay.move(moves[i]);
+      } catch {
+        // Keep the replay position unchanged for an unplayable move.
+      }
+    }
+    return result;
+  }, [analysis, moves]);
+
+  // Derive the visible position directly from the selected move index so the
+  // board, badge, arrow, move list and evaluation all update in the same render.
+  const clampedMoveIndex = Math.min(Math.max(currentMoveIndex, -1), moves.length - 1);
+  const currentPosition = boardPositions[clampedMoveIndex + 1] ?? boardPositions[0];
+  const currentFen = currentPosition.fen;
+  const lastMove = currentPosition.lastMove;
+  const sideToMove: 'w' | 'b' = currentFen.split(' ')[1] === 'b' ? 'b' : 'w';
 
   const fetchGame = useCallback(async () => {
     if (Number.isNaN(gameId)) {
@@ -94,9 +163,6 @@ export const GameDetailPage: React.FC = () => {
       const data = await gamesApi.getGameMoves(gameId);
       const moveList = Array.isArray(data) ? data : [];
       setMoves(moveList);
-      
-      const newChess = new Chess();
-      setChess(newChess);
       setCurrentMoveIndex(-1);
     } catch (err: unknown) {
       setMovesError(err instanceof Error ? err : new Error(String(err)));
@@ -138,9 +204,7 @@ export const GameDetailPage: React.FC = () => {
     setMoves([]);
     setGameError(null);
     setMovesError(null);
-    setChess(new Chess());
     setCurrentMoveIndex(-1);
-    setLastMove(null);
     setIsPlaying(false);
     setAnalysis(null);
     setAnalysisError(null);
@@ -185,23 +249,6 @@ export const GameDetailPage: React.FC = () => {
       }
     };
   }, [isPlaying, currentMoveIndex, moves.length]);
-
-  useEffect(() => {
-    const newChess = new Chess();
-    let latestMove: { from: string; to: string } | null = null;
-    for (let i = 0; i <= currentMoveIndex && i < moves.length; i++) {
-      try {
-        const applied = newChess.move(moves[i]);
-        if (i === currentMoveIndex && applied) {
-          latestMove = { from: applied.from, to: applied.to };
-        }
-      } catch (e) {
-        // Skip invalid move if any
-      }
-    }
-    setChess(newChess);
-    setLastMove(latestMove);
-  }, [currentMoveIndex, moves]);
 
   const goToStart = () => {
     setCurrentMoveIndex(-1);
@@ -329,7 +376,7 @@ export const GameDetailPage: React.FC = () => {
   };
 
   const getSideToMove = () => {
-    return chess.turn() === 'w' ? 'White to move' : 'Black to move';
+    return sideToMove === 'w' ? 'White to move' : 'Black to move';
   };
 
   const getCurrentEvaluation = () => {
@@ -379,7 +426,7 @@ export const GameDetailPage: React.FC = () => {
   };
 
   const getCurrentPositionFen = () => {
-    return chess.fen();
+    return currentFen;
   };
 
   // Orient the board so the initially entered ChessInsight username's pieces are at the bottom.
@@ -619,22 +666,9 @@ export const GameDetailPage: React.FC = () => {
                                 <span className="text-[10px] text-slate-400">CPL: {move.centipawnLoss}</span>
                               )}
                               {move.engineBestMove && move.engineBestMove !== move.playedMove && (
-                                <span className="text-[10px] text-slate-500 hidden sm:inline">Best: {(() => {
-                                  try {
-                                    const chessBefore = new Chess();
-                                    for (let i = 0; i < move.ply - 1 && i < moves.length; i++) {
-                                      try {
-                                        chessBefore.move(moves[i]);
-                                      } catch (e) {
-                                        // ignore
-                                      }
-                                    }
-                                    const bestSan = uciToSan(chessBefore.fen(), move.engineBestMove);
-                                    return bestSan || move.engineBestMove;
-                                  } catch (e) {
-                                    return move.engineBestMove;
-                                  }
-                                })()}</span>
+                                <span className="text-[10px] text-slate-500 hidden sm:inline">
+                                  Best: {bestMoveSan[move.ply] ?? move.engineBestMove}
+                                </span>
                               )}
                             </button>
                           );
@@ -763,7 +797,7 @@ export const GameDetailPage: React.FC = () => {
                                 You
                               </span>
                             )}
-                            {chess.turn() === (isWhite ? 'w' : 'b') && (
+                            {sideToMove === (isWhite ? 'w' : 'b') && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-800/40">
                                 To move
                               </span>
@@ -805,9 +839,10 @@ export const GameDetailPage: React.FC = () => {
                             }
                             return (
                               <Chessboard
-                                position={chess.fen()}
+                                position={currentFen}
                                 boardOrientation={boardOrientation}
                                 arePiecesDraggable={false}
+                                animationDuration={120}
                                 customArrows={customArrows}
                                 customSquareStyles={squareStyles}
                               />
@@ -923,12 +958,12 @@ export const GameDetailPage: React.FC = () => {
                             {candidates.slice(0, 3).map((cand: any, idx: number) => {
                               try {
                                 const fen = getCurrentPositionFen();
-                                let bestMoveSan = '-';
+                                let candidateBestSan = '-';
                                 if (cand.bestMove) {
                                   try {
-                                    bestMoveSan = uciToSan(fen, cand.bestMove) || cand.bestMove;
+                                    candidateBestSan = uciToSan(fen, cand.bestMove) || cand.bestMove;
                                   } catch {
-                                    bestMoveSan = cand.bestMove;
+                                    candidateBestSan = cand.bestMove;
                                   }
                                 }
                                 let pvSan = '';
@@ -947,7 +982,7 @@ export const GameDetailPage: React.FC = () => {
                                 return (
                                   <tr key={idx} className="border-b border-slate-800/50 hover:bg-slate-800/30">
                                     <td className="px-2 py-2 text-slate-300">{cand.rank || idx + 1}</td>
-                                    <td className="px-2 py-2 font-mono text-slate-200">{bestMoveSan}</td>
+                                    <td className="px-2 py-2 font-mono text-slate-200">{candidateBestSan}</td>
                                     <td className="px-2 py-2 text-slate-200">{formatEvaluationText(cand.centipawns, cand.mateIn)}</td>
                                     <td className="px-2 py-2 font-mono text-slate-300 text-xs break-words">{pvSan || (Array.isArray(cand.principalVariation) ? cand.principalVariation.join(' ') : cand.principalVariation)}</td>
                                   </tr>
